@@ -1,0 +1,1 @@
+import {runStage14IntegrationTests} from './stage14Integration.test';const r=await runStage14IntegrationTests();r.forEach((x,i)=>console.log(`${x.passed?'✅':'❌'} Stage 14 ${i+1}: ${x.name}`));const f=r.filter(x=>!x.passed);console.log(`Stage 14: ${r.length-f.length}/${r.length}`);if(f.length)process.exitCode=1;

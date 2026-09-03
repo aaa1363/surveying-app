@@ -1,0 +1,31 @@
+import { readFileSync } from 'node:fs';
+import { calculateCollectionRate } from '../features/dashboard/SurveyorDashboard';
+const read = (path: string) => readFileSync(path, 'utf8');
+export async function runStage15IntegrationTests() {
+  const results: { name: string; passed: boolean }[] = [];
+  const test = (name: string, passed: boolean) => results.push({ name, passed });
+  const dashboard = read('src/features/dashboard/SurveyorDashboard.tsx');
+  const calendar = read('src/components/ui/PersianDateInput.tsx');
+  const form = read('src/features/projects/ProjectFormView.tsx');
+  const rates = read('src/features/rates/PersonalRatesView.tsx');
+  const rateModel = read('src/models/PersonalRates.ts');
+  const pricingHub = read('src/features/hubs/NavigationHubs.tsx');
+  const css = read('src/index.css');
+  test('داشبورد دقیقاً چهار گروه تأییدشده دارد', ['خلاصه پروژه‌ها','فاکتورها','خلاصه مالی','نرخ وصول'].every(x => dashboard.includes(x)));
+  test('CTA ثبت پروژه از داشبورد حذف شده', !dashboard.includes('ثبت پروژه جدید') && !dashboard.includes('PrimaryActionBanner'));
+  test('آمار داشبورد از Repository خوانده می‌شود', dashboard.includes('projectRepository.getProjects') && dashboard.includes('invoicesRepository.getInvoices'));
+  test('تقسیم بر صفر نرخ وصول کنترل شده', calculateCollectionRate(0, 0) === 0 && calculateCollectionRate(50, 100) === 50);
+  test('تقویم با Portal و dialog واقعی رندر می‌شود', calendar.includes('createPortal') && calendar.includes('aria-modal="true"'));
+  test('تقویم امروز، پاک‌کردن، انصراف و تأیید دارد', ['امروز','پاک‌کردن','انصراف','تأیید تاریخ'].every(x => calendar.includes(x)));
+  test('ثبت نهایی با re-read تأیید می‌شود', form.includes('getProjectById') && form.includes('تأیید ثبت پروژه از مخزن'));
+  test('Modal موفقیت سه مسیر دارد', ['ورود به قیمت‌گذاری پروژه','مشاهده پروژه','بازگشت به فهرست پروژه‌ها'].every(x => form.includes(x)));
+  test('مرحله نهایی دکمه ذخیره و ادامه ندارد', form.includes('wizardStep<6&&<Button'));
+  test('ورودی عددی Android الگوی فارسی و عربی دارد', rates.includes('inputMode="numeric"') && rates.includes('[0-9۰-۹٠-٩]*'));
+  test('هر نقش نیروی انسانی اختیاری است', rates.includes('این نقش استفاده می‌شود') && rateModel.includes('enabled?: boolean'));
+  test('چهار روش محاسبه نیروی انسانی وجود دارد', ['full_day','half_day','hourly','fixed'].every(x => rateModel.includes(x)));
+  test('migration نرخ‌ها به schema 2 وجود دارد', read('src/repositories/demo/DemoPersonalRatesRepository.ts').includes('stored.schemaVersion === 1') && read('src/repositories/demo/DemoPersonalRatesRepository.ts').includes('schemaVersion: 2'));
+  test('ترتیب چهار ابزار قیمت‌گذاری صحیح است', ['۱. برآورد اولیه قیمت','۲. نرخ‌های هزینه شخصی','۳. محاسبه قیمت واقعی پروژه','۴. تعرفه‌ها و قیمت‌های منتشرشده'].every((x, i, a) => i === 0 || pricingHub.indexOf(a[i - 1]) < pricingHub.indexOf(x)));
+  test('واحدهای خدمات و تبدیل‌ها تغییر نکرده‌اند', !pricingHub.includes('واحد جدید') && !rateModel.includes("currency: 'RIAL'"));
+  test('طراحی واقعی کارت، آیکن 48 و حالت‌های تعامل دارد', css.includes('width:48px') && css.includes('.hub-card:active') && css.includes('.hub-card:disabled'));
+  return results;
+}

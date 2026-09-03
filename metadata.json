@@ -1,0 +1,6 @@
+{
+  "name": "Land Surveying Cost Estimation",
+  "description": "Modular land surveying project management platform with surveyor dashboard, demo auth flow, and repository layer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

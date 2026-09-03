@@ -1,0 +1,43 @@
+{
+  "name": "react-example",
+  "private": true,
+  "version": "0.11.0-demo",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "clean": "rm -rf dist server.js",
+    "lint": "tsc --noEmit",
+    "test": "node --input-type=module --eval \"process.geteuid=()=>1000; await import('tsx/esm'); await import('./src/utils/runStage5Tests.ts'); await import('./src/utils/runStage6Tests.ts'); await import('./src/utils/runStage7Tests.ts'); await import('./src/utils/runStage8Tests.ts'); await import('./src/utils/runStage9Tests.ts'); await import('./src/utils/runStage10Tests.ts'); await import('./src/utils/runStage10bTests.ts'); await import('./src/utils/runAdminValidationLabTests.ts'); await import('./src/utils/runAndroidConfigurationTests.ts'); await import('./src/utils/runStage12Tests.ts'); await import('./src/utils/runStage13Tests.ts'); await import('./src/utils/runStage14Tests.ts'); await import('./src/utils/runStage15Tests.ts');\"",
+    "android:sync": "npm run build && cap sync android",
+    "android:debug": "npm run android:sync && cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/share": "^8.0.1",
+    "@fontsource-variable/vazirmatn": "^5.3.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "html2canvas-pro": "2.4.1",
+    "jalaali-js": "^2.0.1",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vazirmatn": "^33.0.3",
+    "vite": "^6.2.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
+    "@types/jalaali-js": "^1.2.0",
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3"
+  }
+}

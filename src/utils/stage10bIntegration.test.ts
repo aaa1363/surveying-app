@@ -1,0 +1,40 @@
+import { ValidationScenario } from '../models';
+import { DemoPublishedPricesRepository, DemoValidationLabRepository } from '../repositories/demo';
+import { RepositoryActor } from '../models/Stage6Models';
+import { calculateValidationMetrics, UTM_PILOT_SERVICE, validateScenario } from './validationLab';
+import { getJalaliYear } from './jalaliDate';
+
+type Result={title:string;passed:boolean;message:string};
+const owner:RepositoryActor={userId:'utm-owner',role:'surveyor',environment:'demo'},admin:RepositoryActor={userId:'utm-admin',role:'admin',environment:'demo'},client:RepositoryActor={userId:'utm-client',role:'client',environment:'demo'};
+const currentYear=getJalaliYear();
+const base=(over:Partial<ValidationScenario>={}):ValidationScenario=>({scenarioId:'utm-1',schemaVersion:2,environment:'demo',ownerUserId:owner.userId,expertPseudonym:'expert-utm',serviceId:UTM_PILOT_SERVICE.id,serviceTitleSnapshot:UTM_PILOT_SERVICE.title,quantity:500,unit:'مترمربع',regionClass:'metropolitan',complexityLevel:'standard',urgencyLevel:'normal',parcelAreaM2:500,boundaryVertexCount:4,accessLevel:'standard',fieldCondition:'normal',executionYear:currentYear,environmentalFactors:[],equipmentFactors:[],reasonCodes:['expert_judgment'],executionDate:`${currentYear}/01/01`,calculationStatus:'calculated',engineEstimatedPrice:5_100_000,expertMinimumPrice:4_000_000,expertExpectedPrice:5_000_000,expertMaximumPrice:6_000_000,expertCount:1,expertConfidence:'medium',engineVersion:'pricing-engine.v1',settingsVersion:'settings-2026-01-01',tariffVersion:'tariff.v1',createdAt:new Date().toISOString(),sourceType:'completed_work',anonymized:true,currency:'TOMAN',...over});
+const input=()=>{const {scenarioId,schemaVersion,environment,ownerUserId,expertPseudonym,createdAt,anonymized,currency,calculationStatus,engineEstimatedPrice,engineVersion,settingsVersion,tariffVersion,...rest}=base();void calculationStatus;void engineEstimatedPrice;void engineVersion;void settingsVersion;void tariffVersion;return rest;};
+const rejects=(fn:()=>unknown)=>{try{fn();return false;}catch{return true;}};
+const rejectsAsync=async(fn:()=>Promise<unknown>)=>{try{await fn();return false;}catch{return true;}};
+
+export async function runStage10bIntegrationTests():Promise<Result[]>{const results:Result[]=[];const test=async(title:string,fn:()=>boolean|Promise<boolean>)=>{try{results.push({title,passed:await fn(),message:'موفق'});}catch(e){results.push({title,passed:false,message:e instanceof Error?e.message:'خطا'});}};
+ await test('۱ اتصال به خدمت UTM موجود و عدم ساخت خدمت تکراری',async()=>{const cards=await new DemoPublishedPricesRepository().getAllPublishedPriceCards();return cards.some(x=>x.id===UTM_PILOT_SERVICE.id&&x.title===UTM_PILOT_SERVICE.title)&&cards.filter(x=>x.id===UTM_PILOT_SERVICE.id).length===1;});
+ await test('۲ مساحت مثبت و finite پذیرفته شود',()=>validateScenario(base()).parcelAreaM2===500);
+ await test('۳ مساحت صفر، منفی، NaN و Infinity رد شود',()=>[0,-1,NaN,Infinity].every(v=>rejects(()=>validateScenario(base({parcelAreaM2:v,quantity:v})))));
+ await test('۴ مساحت بالاتر از سقف مرکزی رد شود',()=>rejects(()=>validateScenario(base({parcelAreaM2:1_000_000_001,quantity:1_000_000_001}))));
+ await test('۵ تعداد شکست صحیح مثبت پذیرفته شود',()=>validateScenario(base()).boundaryVertexCount===4);
+ await test('۶ تعداد شکست اعشاری، صفر و منفی رد شود',()=>[1.5,0,-1].every(v=>rejects(()=>validateScenario(base({boundaryVertexCount:v})))));
+ await test('۷ taxonomy دسترسی کنترل شود',()=>rejects(()=>validateScenario(base({accessLevel:'blocked' as ValidationScenario['accessLevel']}))));
+ await test('۸ taxonomy شرایط برداشت کنترل شود',()=>rejects(()=>validateScenario(base({fieldCondition:'extreme' as ValidationScenario['fieldCondition']}))));
+ await test('۹ taxonomy منطقه، پیچیدگی و فوریت حفظ شود',()=>validateScenario(base()).regionClass==='metropolitan'&&validateScenario(base()).complexityLevel==='standard'&&validateScenario(base()).urgencyLevel==='normal');
+ await test('۱۰ ترتیب حداقل، مورد انتظار و حداکثر enforce شود',()=>rejects(()=>validateScenario(base({expertMinimumPrice:5_500_000})))&&rejects(()=>validateScenario(base({expertMaximumPrice:4_500_000}))));
+ await test('۱۱ مبالغ صفر، منفی و non-finite رد شوند',()=>[0,-1,NaN,Infinity].every(v=>rejects(()=>validateScenario(base({expertExpectedPrice:v})))));
+ await test('۱۲ مبلغ توافقی خارج بازه کارشناسی مجاز باشد',()=>validateScenario(base({actualAgreedPrice:9_000_000})).actualAgreedPrice===9_000_000);
+ await test('۱۳ مبلغ توافقی خالی اختیاری باشد',()=>validateScenario(base()).actualAgreedPrice===undefined);
+ await test('۱۴ مبلغ توافقی نامعتبر رد شود',()=>[0,-1,NaN,Infinity].every(v=>rejects(()=>validateScenario(base({actualAgreedPrice:v})))));
+ await test('۱۵ سال جاری پذیرفته و سال آینده رد شود',()=>validateScenario(base()).executionYear===currentYear&&rejects(()=>validateScenario(base({executionYear:currentYear+1}))));
+ await test('۱۶ سال اعشاری و خارج محدوده معقول رد شود',()=>rejects(()=>validateScenario(base({executionYear:1404.5})))&&rejects(()=>validateScenario(base({executionYear:1299}))));
+ await test('۱۷ PII و فیلد پروژه واقعی رد شود',()=>rejects(()=>validateScenario({...base(),phone:'09123456789'}))&&rejects(()=>validateScenario({...base(),city:'یزد'}))&&rejects(()=>validateScenario({...base(),projectId:'real-project'})));
+ await test('۱۸ metadata بر نتیجه معیارهای موتور اثر نگذارد',()=>{const before=calculateValidationMetrics(base()),after=calculateValidationMetrics(base({parcelAreaM2:900,boundaryVertexCount:12,accessLevel:'difficult',fieldCondition:'difficult',complexityLevel:'exceptional',urgencyLevel:'critical'}));return JSON.stringify(before)===JSON.stringify(after);});
+ await test('۱۹ migration نسخه ۱ بدون خرابی انجام شود',()=>{const legacy={...base(),schemaVersion:1 as const};delete legacy.parcelAreaM2;delete legacy.boundaryVertexCount;delete legacy.accessLevel;delete legacy.fieldCondition;delete legacy.executionYear;const migrated=validateScenario(legacy);return migrated.schemaVersion===2&&migrated.parcelAreaM2===legacy.quantity&&migrated.boundaryVertexCount===1&&migrated.accessLevel==='standard';});
+ await test('۲۰ Repository نسخه قدیمی storage را برای admin بخواند',async()=>{localStorage.clear();const legacy={...base(),schemaVersion:1 as const};delete legacy.parcelAreaM2;delete legacy.boundaryVertexCount;delete legacy.accessLevel;delete legacy.fieldCondition;delete legacy.executionYear;localStorage.setItem('surveying.validationLab.v1.demo',JSON.stringify([legacy]));return (await new DemoValidationLabRepository().getScenarios(admin))[0]?.schemaVersion===2;});
+ await test('۲۱ admin سناریوی کارشناسی unavailable ثبت کند',async()=>{localStorage.clear();const repo=new DemoValidationLabRepository(),saved=await repo.createScenario(admin,input());return saved.ownerUserId===admin.userId&&saved.calculationStatus==='unavailable'&&saved.engineEstimatedPrice===undefined;});
+ await test('۲۲ client و surveyor نتوانند سناریو ثبت کنند',async()=>{const repo=new DemoValidationLabRepository();return await rejectsAsync(()=>repo.createScenario(client,input()))&&await rejectsAsync(()=>repo.createScenario(owner,input()));});
+ await test('۲۳ واحد تمام مبالغ تومان باشد',()=>validateScenario(base()).currency==='TOMAN');
+ await test('۲۴ خدمت دیگر در ثبت سناریوی پایلوت رد شود',async()=>rejectsAsync(()=>new DemoValidationLabRepository().createScenario(admin,{...input(),serviceId:'sur_1'})));
+ return results;}
